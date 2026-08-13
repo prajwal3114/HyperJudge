@@ -11,14 +11,25 @@ async function compile(sourceCode, workDir) {
         await fs.writeFile(sourceFile, sourceCode);
 
         return new Promise((resolve) => {
-            // Use spawn to execute the compiler safely, avoiding shell injection
-            const compiler = spawn('g++', [
+            const NSJAIL_PATH = '/home/prajwal311/hyperjudge-deps/nsjail/nsjail';
+            const configPath = path.resolve(__dirname, '../../../sandbox/nsjail/configs/compile.conf');
+            
+            const nsjailArgs = [
+                '--config', configPath,
+                '--user', '99999',
+                '--group', '99999',
+                '-B', workDir, // Mount workspace read-write so compiler can output main
+                '--',
+                '/usr/bin/g++',
                 '-std=c++17',
                 '-O2',
                 sourceFile,
                 '-o',
                 executableFile
-            ]);
+            ];
+
+            // Use spawn to execute the compiler safely via NSJail
+            const compiler = spawn(NSJAIL_PATH, nsjailArgs);
 
             let stderrData = '';
 

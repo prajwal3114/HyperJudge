@@ -120,7 +120,7 @@ async function runTests() {
             timeLimit: nc.timeLimit || 2000,
             memoryLimit: 256
         });
-        
+
         if (res.status === nc.expect) {
             console.log(`✓ ${nc.name} -> Got expected: ${res.status}`);
         } else {
@@ -134,5 +134,6 @@ async function runTests() {
         process.exit(1);
     }
 }
+// test has been done throiught the ns jail 
 
 runTests();

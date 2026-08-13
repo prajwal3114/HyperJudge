@@ -1,5 +1,8 @@
 const { spawn } = require('child_process');
 const { performance } = require('perf_hooks');
+const path = require('path');
+
+const NSJAIL_PATH = '/home/prajwal311/hyperjudge-deps/nsjail/nsjail';
 
 /**
  * Executes a compiled executable safely with a time limit.
@@ -7,16 +10,31 @@ const { performance } = require('perf_hooks');
  * @param {string} executablePath - Absolute path to the executable file.
  * @param {string} input - Input string to pass to the process's stdin.
  * @param {number} timeLimit - Time limit in milliseconds.
+ * @param {string} workspace - Absolute path to the dynamically created workspace.
  * @returns {Promise<Object>} The structured result of the execution.
  */
-function runExecutable(executablePath, input, timeLimit) {
+function runExecutable(executablePath, input, timeLimit, workspace, memoryLimit = 256) {
     return new Promise((resolve, reject) => {
         const start = performance.now();
         
         let child;
         try {
+            const configPath = path.resolve(__dirname, '../../../sandbox/nsjail/configs/execute.conf');
+            
+            const nsjailArgs = [
+                '--config', configPath,
+                '--user', '99999',
+                '--group', '99999',
+                '--time_limit', (timeLimit / 1000).toString(),
+                '--rlimit_cpu', Math.ceil(timeLimit / 1000 + 1).toString(), // CPU limit slightly higher than wall-clock
+                '--rlimit_as', memoryLimit.toString(),
+                '-R', workspace, // Bind mount workspace Read-Only
+                '--',
+                executablePath
+            ];
+
             // We use spawn without a shell for security and control
-            child = spawn(executablePath, [], {
+            child = spawn(NSJAIL_PATH, nsjailArgs, {
                 stdio: ['pipe', 'pipe', 'pipe']
             });
         } catch (error) {

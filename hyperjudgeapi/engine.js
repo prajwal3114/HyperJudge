@@ -14,6 +14,7 @@ async function judgeSubmission({ sourceCode, language, testCases, timeLimit, mem
         const compileResult = await compile(sourceCode, workspace);
 
         if (!compileResult.success) {
+            console.error("COMPILATION_ERROR:", compileResult.error);
             return {
                 status: "COMPILATION_ERROR",
                 testsPassed: 0,
@@ -34,7 +35,9 @@ async function judgeSubmission({ sourceCode, language, testCases, timeLimit, mem
             const runResult = await runExecutable(
                 compileResult.executablePath,
                 testCase.input,
-                timeLimit
+                timeLimit,
+                workspace,
+                memoryLimit
             );
 
             let testStatus = runResult.status;
