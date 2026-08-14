@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProblemStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  MEMORY_LIMIT_EXCEEDED
+  RUNTIME_ERROR
+  COMPILATION_ERROR
+  INTERNAL_ERROR
+}
+
+enum OutboxEventStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+// ---------------------------------------------------------
+// MODELS
+// ---------------------------------------------------------
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  username      String   @unique @db.VarChar(50)
+  password_hash String
+  rating        Int      @default(1200)
+  role          Role     @default(USER)
+  
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  submissions   Submission[]
+  problems      Problem[]
+  leaderboard   Leaderboard[]
+
+  @@map("users")
+}
+
+model Problem {
+  id              String        @id @default(uuid()) @db.Uuid
+  author_id       String        @db.Uuid
+  slug            String        @unique @db.VarChar(100)
+  title           String        @db.VarChar(255)
+  time_limit_ms   Int
+  memory_limit_mb Int
+  status          ProblemStatus @default(DRAFT)
+
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  author          User          @relation(fields: [author_id], references: [id], onDelete: Restrict)
+  test_cases      TestCase[]
+  submissions     Submission[]
+
+  @@map("problems")
+}
+
+model TestCase {
+  id              String   @id @default(uuid()) @db.Uuid
+  problem_id      String   @db.Uuid
+  input_data      String   @db.Text
+  expected_output String   @db.Text
+  is_hidden       Boolean  @default(false)
+  sequence_number Int
+
+  created_at      DateTime @default(now())
+
+  problem         Problem  @relation(fields: [problem_id], references: [id], onDelete: Cascade)
+
+  @@unique([problem_id, sequence_number])
+  @@map("test_cases")
+}
+
+model Submission {
+  id                String           @id @default(uuid()) @db.Uuid
+  user_id           String           @db.Uuid
+  problem_id        String           @db.Uuid
+  
+  source_code       String           @db.Text
+  language          String           @db.VarChar(50)
+  status            SubmissionStatus @default(PENDING)
+  
+  tests_passed      Int              @default(0)
+  tests_total       Int              @default(0)
+  execution_time_ms Int?
+  memory_used_kb    Int?
+  
+  version           Int              @default(1)
+  idempotency_key   String?          @db.VarChar(100)
+
+  created_at        DateTime         @default(now())
+  started_at        DateTime?
+  finished_at       DateTime?
+
+  user              User             @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  problem           Problem          @relation(fields: [problem_id], references: [id], onDelete: Restrict)
+  test_case_results SubmissionTestCaseResult[]
+
+  @@unique([user_id, idempotency_key])
+  @@index([user_id, problem_id, created_at(sort: Desc)])
+  @@index([status, created_at])
+  @@map("submissions")
+}
+
+model SubmissionTestCaseResult {
+  id                String   @id @default(uuid()) @db.Uuid
+  submission_id     String   @db.Uuid
+  testcase_id       String   @db.Uuid
+  status            SubmissionStatus
+  
+  execution_time_ms Int?
+  memory_used_kb    Int?
+  stdout            String?  @db.Text
+  stderr            String?  @db.Text
+  exit_code         Int?
+  signal            String?  @db.VarChar(50)
+
+  created_at        DateTime @default(now())
+
+  submission        Submission @relation(fields: [submission_id], references: [id], onDelete: Cascade)
+
+  @@unique([submission_id, testcase_id])
+  @@map("submission_test_case_results")
+}
+
+model Contest {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(255)
+  start_time  DateTime
+  end_time    DateTime
+  status      String   @default("UPCOMING") @db.VarChar(50) // Can be made enum if needed
+
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  leaderboard Leaderboard[]
+
+  @@map("contests")
+}
+
+model Leaderboard {
+  id           String   @id @default(uuid()) @db.Uuid
+  contest_id   String   @db.Uuid
+  user_id      String   @db.Uuid
+  score        Int      @default(0)
+  penalty_time Int      @default(0)
+
+  updated_at   DateTime @updatedAt
+
+  contest      Contest  @relation(fields: [contest_id], references: [id], onDelete: Restrict)
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@unique([contest_id, user_id])
+  @@index([contest_id, score(sort: Desc), penalty_time(sort: Asc)])
+  @@map("leaderboard")
+}
+
+model OutboxEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  aggregate_id   String            @db.Uuid
+  aggregate_type String            @db.VarChar(100)
+  event_type     String            @db.VarChar(100)
+  payload        Json
+  status         OutboxEventStatus @default(PENDING)
+  attempt_count  Int               @default(0)
+
+  created_at     DateTime          @default(now())
+  published_at   DateTime?
+
+  @@index([status, created_at])
+  @@map("outbox_events")
+}
