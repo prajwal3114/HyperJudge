@@ -6,10 +6,14 @@ const app = express();
 
 app.use(express.json());
 
-// TODO: API Routes (To be implemented by User)
-// app.use('/api/users', require('./routes/users'));
-// app.use('/api/problems', require('./routes/problems'));
-// app.use('/api/submissions', require('./routes/submissions'));
+// API Routes
+app.use('/api/users', require('./components/Users/user.routes'));
+app.use('/api/problems', require('./components/Problems/problem.routes'));
+app.use('/api/submissions', require('./components/Submissions/submission.routes'));
+app.use('/api/contests', require('./components/Contests/contest.routes'));
+
+// Global Error Handler
+app.use(require('./middlewares/error.middleware'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
